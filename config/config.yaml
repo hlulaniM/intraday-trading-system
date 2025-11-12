@@ -1,0 +1,165 @@
+# Configuration file for Probabilistic Intraday Trading Forecast System
+
+# Data Sources
+data_sources:
+  alpaca:
+    enabled: true
+    base_url: "https://paper-api.alpaca.markets"  # Use paper trading for testing
+    timeout: 30
+  
+  yahoo_finance:
+    enabled: true
+    timeout: 30
+  
+  alpha_vantage:
+    enabled: false
+    timeout: 30
+
+# Data Collection
+data_collection:
+  timeframe: "1Min"  # Minute-level data
+  lookback_days: 90  # Days of historical data to collect
+  symbols:
+    - "BTC/USD"
+    - "ETH/USD"
+    - "AAPL"
+    - "TSLA"
+  
+  storage:
+    raw_data_path: "./data/raw"
+    processed_data_path: "./data/processed"
+    format: "parquet"  # parquet or csv
+
+# Feature Engineering
+features:
+  technical_indicators:
+    macd:
+      enabled: true
+      fast_period: 12
+      slow_period: 26
+      signal_period: 9
+    
+    rsi:
+      enabled: true
+      period: 14
+    
+    bollinger_bands:
+      enabled: true
+      period: 20
+      std_dev: 2
+    
+    atr:
+      enabled: true
+      period: 14
+    
+    ema:
+      enabled: true
+      periods: [9, 21, 50]
+    
+    sma:
+      enabled: true
+      periods: [20, 50, 200]
+    
+    stochastic:
+      enabled: true
+      k_period: 14
+      d_period: 3
+  
+  sentiment:
+    enabled: true
+    model: "FinBERT"
+    smoothing_window: 5
+    news_sources:
+      - "yahoo_finance"
+      - "newscatcher"  # Optional
+
+# Model Configuration
+model:
+  architecture:
+    lstm:
+      layers: 2
+      hidden_units: [128, 64]
+      dropout: 0.3
+    
+    transformer:
+      num_heads: 8
+      num_layers: 2
+      d_model: 512
+      d_ff: 2048
+      dropout: 0.1
+    
+    fusion:
+      method: "concatenate"  # concatenate or weighted
+      dense_units: 256
+      dropout: 0.5
+  
+  training:
+    sequence_length: 60  # Time steps
+    batch_size: 32
+    learning_rate: 0.001
+    optimizer: "adam"
+    loss_function: "combined"  # MSE + NLL
+    early_stopping:
+      enabled: true
+      patience: 15
+      monitor: "val_loss"
+    epochs: 100
+  
+  probabilistic:
+    monte_carlo_samples: 100
+    dropout_rate: 0.5
+    confidence_level: 0.95
+
+# Data Split
+data_split:
+  train: 0.7
+  validation: 0.2
+  test: 0.1
+  method: "chronological"  # chronological or random
+
+# Performance Targets
+performance:
+  directional_accuracy: 0.90
+  mae_reduction: 0.20  # 20% reduction from baseline
+  latency_ms: 200
+  profit_factor: 1.5
+
+# API Configuration
+api:
+  host: "0.0.0.0"
+  port: 8000
+  reload: true  # Set to false in production
+  workers: 4
+  timeout: 30
+  rate_limit:
+    enabled: true
+    requests_per_minute: 100
+
+# TradingView Integration
+tradingview:
+  enabled: true
+  webhook_timeout: 5
+  min_confidence: 0.70  # Minimum confidence to trigger alert
+
+# Dashboard
+dashboard:
+  host: "127.0.0.1"
+  port: 8050
+  refresh_interval: 60  # seconds
+  theme: "dark"
+
+# Logging
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  format: "json"  # json or text
+  file: "./logs/app.log"
+  max_size_mb: 100
+  backup_count: 5
+
+# Monitoring
+monitoring:
+  enabled: true
+  metrics_path: "/metrics"
+  health_check_path: "/health"
+  alert_on_error: true
+
