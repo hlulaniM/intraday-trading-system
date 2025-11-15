@@ -1,0 +1,21 @@
+version: "3.9"
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - ALPACA_API_KEY=${ALPACA_API_KEY}
+      - ALPACA_SECRET_KEY=${ALPACA_SECRET_KEY}
+      - ALPACA_BASE_URL=${ALPACA_BASE_URL:-https://paper-api.alpaca.markets/v2}
+    volumes:
+      - .:/app
+  dashboard:
+    build: .
+    command: python -m src.dashboard.app
+    ports:
+      - "8050:8050"
+    environment:
+      - PYTHONPATH=/app/src
+    volumes:
+      - .:/app

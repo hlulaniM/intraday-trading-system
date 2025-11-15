@@ -214,11 +214,41 @@ uvicorn src.api.server:app --reload
 
 The `/predict` endpoint expects a single sequence (list of `[timesteps, features]`) and returns both direction probability (with Monte Carlo variance) and level forecast statistics. Wire this endpoint to TradingView webhooks or any realtime consumer that can package the latest engineered sequence.
 
+### TradingView Webhook
+
+`POST /webhook` accepts either a `sequence` field or a `symbol`, plus an optional `threshold`. Example payload for alerts:
+
+```json
+{
+  "symbol": "AAPL",
+  "alert_name": "AAPL breakout",
+  "threshold": 0.6
+}
+```
+
+Sample Pine Script alert message:
+
+```pine
+{
+  "symbol": "{{ticker}}",
+  "alert_name": "{{strategy.order.comment}}",
+  "threshold": 0.6
+}
+```
+
 ### Running the Dashboard
 
 ```bash
 python -m src.dashboard.app
 ```
+
+### Docker Deployment
+
+```bash
+docker compose up --build
+```
+
+Expose API on `localhost:8000` and dashboard on `localhost:8050`. Set `ALPACA_API_KEY`, `ALPACA_SECRET_KEY`, and `ALPACA_BASE_URL` in your environment before launching.
 
 ## Documentation
 
@@ -226,6 +256,7 @@ python -m src.dashboard.app
 - [API Documentation](docs/api.md) - API endpoint documentation
 - [User Guide](docs/user_guide.md) - Usage instructions
 - [Model Results](docs/model_results.md) - Baseline and hybrid metrics
+- [Backtests](docs/backtests/) - Strategy profit factor and drawdown summaries
 
 ## Contributing
 
