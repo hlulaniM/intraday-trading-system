@@ -22,6 +22,7 @@ def clean_price_frame(df: pd.DataFrame, freq: str = "1min") -> pd.DataFrame:
 
     df = df.sort_index()
     df = _ensure_datetime_index(df)
+    df = df[~df.index.duplicated(keep="last")]
 
     df = _fill_missing_timestamps(df, freq=freq)
     df = _remove_outliers(df, columns=["open", "high", "low", "close"])

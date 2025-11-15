@@ -195,9 +195,11 @@ PYTHONPATH=src python scripts/tune_hybrid.py \
 ```bash
 PYTHONPATH=src python scripts/backtest_hybrid.py \
   data/processed/sequences/aapl_sequences.npz \
+  data/processed/sequences/tsla_sequences.npz \
   --close-index -1 \
-  --epochs 15 \
-  --output docs/backtests/aapl_backtest.json
+  --epochs 20 \
+  --output-dir docs/backtests \
+  --summary docs/backtests/summary.json
 ```
 
 ### Training the Model
@@ -274,6 +276,7 @@ Expose API on `localhost:8000` and dashboard on `localhost:8050`. Set `ALPACA_AP
 - [User Guide](docs/user_guide.md) - Usage instructions
 - [Model Results](docs/model_results.md) - Baseline and hybrid metrics
 - [Backtests](docs/backtests/) - Strategy profit factor and drawdown summaries
+- [Backtests (Long Window)](docs/backtests/summary_long.md) - Extended AAPL/TSLA evaluations
 
 ## Contributing
 
