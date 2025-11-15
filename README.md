@@ -232,9 +232,21 @@ Sample Pine Script alert message:
 {
   "symbol": "{{ticker}}",
   "alert_name": "{{strategy.order.comment}}",
-  "threshold": 0.6
+  "threshold": 0.6,
+  "auto_trade": true
 }
 ```
+
+To enable Alpaca auto-trading, export the following:
+
+```bash
+export ALPACA_API_KEY="your_key"
+export ALPACA_SECRET_KEY="your_secret"
+export AUTO_TRADE_ENABLED=true
+export AUTO_TRADE_QTY=1
+```
+
+When enabled, `/webhook` will submit market orders via Alpaca’s paper trading API whenever the confidence exceeds the threshold and log them to `logs/trades.jsonl`.
 
 ### Running the Dashboard
 
@@ -249,6 +261,11 @@ docker compose up --build
 ```
 
 Expose API on `localhost:8000` and dashboard on `localhost:8050`. Set `ALPACA_API_KEY`, `ALPACA_SECRET_KEY`, and `ALPACA_BASE_URL` in your environment before launching.
+
+### Monitoring
+
+- `/metrics` returns JSON with ingestion metadata, baseline/hybrid metrics, and recent auto-trades.
+- `/metrics/prom` exposes Prometheus-friendly counters (predict/webhook requests, latency, etc.).
 
 ## Documentation
 
