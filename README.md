@@ -200,6 +200,8 @@ PYTHONPATH=src python scripts/backtest_hybrid.py \
   --epochs 20 \
   --stop-loss 0.005 \
   --take-profit 0.01 \
+  --min-confidence 0.55 \
+  --dynamic-sizing \
   --output-dir docs/backtests \
   --summary docs/backtests/summary.json
 ```

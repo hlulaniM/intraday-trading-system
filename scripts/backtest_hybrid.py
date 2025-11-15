@@ -39,6 +39,17 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Take-profit as fractional move of entry price.",
     )
+    parser.add_argument(
+        "--min-confidence",
+        type=float,
+        default=0.0,
+        help="Minimum hybrid direction probability to open a trade.",
+    )
+    parser.add_argument(
+        "--dynamic-sizing",
+        action="store_true",
+        help="Scale hybrid position size by probability distance from 0.5.",
+    )
     return parser.parse_args()
 
 
@@ -64,8 +75,13 @@ def simulate_trades(
     signal: np.ndarray,
     stop_loss: float | None = None,
     take_profit: float | None = None,
+    size: np.ndarray | None = None,
 ) -> dict:
-    pnl = signal * (exit_ - entry)
+    if size is None:
+        position = signal
+    else:
+        position = signal * size
+    pnl = position * (exit_ - entry)
     pnl = _apply_risk_overlays(pnl, entry, stop_loss, take_profit)
     cumulative = pnl.cumsum()
     wins = pnl[pnl > 0].sum()
@@ -98,9 +114,17 @@ def backtest_model(
     direction_signal: np.ndarray,
     stop_loss: float | None,
     take_profit: float | None,
+    size: np.ndarray | None = None,
 ) -> dict:
     signal = np.where(direction_signal > 0, 1, -1)
-    return simulate_trades(entry, exit_, signal, stop_loss=stop_loss, take_profit=take_profit)
+    return simulate_trades(
+        entry,
+        exit_,
+        signal,
+        stop_loss=stop_loss,
+        take_profit=take_profit,
+        size=size,
+    )
 
 
 def run_backtest(
@@ -110,6 +134,8 @@ def run_backtest(
     batch_size: int,
     stop_loss: float | None,
     take_profit: float | None,
+    min_confidence: float,
+    dynamic_sizing: bool,
 ) -> dict:
     dataset = SequenceDataset.from_npz(dataset_path, close_index=close_index)
     entry_prices = dataset.last_closes("test")
@@ -122,13 +148,44 @@ def run_backtest(
         dataset.test_y,
     )
     rf_signal = np.sign(rf_result.predictions - entry_prices)
-    rf_metrics = backtest_model(entry_prices, true_prices, rf_signal, stop_loss, take_profit)
+    rf_metrics = backtest_model(
+        entry_prices,
+        true_prices,
+        rf_signal,
+        stop_loss,
+        take_profit,
+    )
 
     trainer = HybridTrainer(dataset, config=HybridConfig())
     trainer.train(epochs=epochs, batch_size=batch_size)
-    _, level_pred = trainer.model.model.predict(dataset.test_X, verbose=0)
-    hybrid_signal = np.sign(level_pred.flatten() - entry_prices)
-    hybrid_metrics = backtest_model(entry_prices, true_prices, hybrid_signal, stop_loss, take_profit)
+    dir_pred, level_pred = trainer.model.model.predict(dataset.test_X, verbose=0)
+    probs = dir_pred.flatten()
+
+    hybrid_signal = np.zeros_like(probs)
+    if min_confidence <= 0:
+        hybrid_signal = np.sign(level_pred.flatten() - entry_prices)
+    else:
+        lower = 1.0 - min_confidence
+        for idx, p in enumerate(probs):
+            if p >= min_confidence:
+                hybrid_signal[idx] = 1
+            elif p <= lower:
+                hybrid_signal[idx] = -1
+            else:
+                hybrid_signal[idx] = 0
+
+    size = None
+    if dynamic_sizing:
+        size = np.clip(np.abs(probs - 0.5) * 2, 0.0, 1.0)
+
+    hybrid_metrics = backtest_model(
+        entry_prices,
+        true_prices,
+        hybrid_signal,
+        stop_loss,
+        take_profit,
+        size=size,
+    )
 
     return {
         "baseline_random_forest": rf_metrics,
@@ -156,6 +213,8 @@ def main() -> None:
             args.batch_size,
             args.stop_loss,
             args.take_profit,
+            args.min_confidence,
+            args.dynamic_sizing,
         )
         summary[symbol] = results
         output_path = output_dir / f"{symbol.lower()}_backtest.json"
