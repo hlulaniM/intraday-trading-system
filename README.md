@@ -112,7 +112,7 @@ Use the Phase 2 collection script to download and store raw Alpaca minute bars (
 ```bash
 source .venv/bin/activate
 python scripts/collect_intraday_data.py \
-  --symbols AAPL TSLA \
+  --symbols AAPL TSLA BTC/USD \
   --lookback-days 5 \
   --timeframe 1Min \
   --format parquet
@@ -171,6 +171,17 @@ PYTHONPATH=src python scripts/train_hybrid.py \
   --output data/processed/sequences/aapl_hybrid_metrics.json
 ```
 
+### Hyperparameter Sweep
+
+```bash
+PYTHONPATH=src python scripts/tune_hybrid.py \
+  data/processed/sequences/aapl_sequences.npz \
+  --config config/config.yaml \
+  --close-index -1 \
+  --epochs 20 \
+  --output data/processed/sequences/aapl_hybrid_tuning.json
+```
+
 ### Training the Model
 
 ```bash
@@ -180,7 +191,7 @@ python -m src.models.train
 ### Running the API Server
 
 ```bash
-python -m src.api.main
+uvicorn src.api.server:app --reload
 ```
 
 ### Running the Dashboard

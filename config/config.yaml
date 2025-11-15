@@ -19,6 +19,8 @@ data_sources:
 data_collection:
   timeframe: "1Min"  # Minute-level data
   lookback_days: 90  # Days of historical data to collect
+  manifest_path: "./data/raw/manifest.json"
+  max_symbols_per_run: 4
   symbols:
     - "BTC/USD"
     - "ETH/USD"
@@ -72,6 +74,9 @@ features:
     news_sources:
       - "yahoo_finance"
       - "newscatcher"  # Optional
+  context:
+    session_features: true
+    volatility_buckets: true
 
 # Model Configuration
 model:
@@ -109,6 +114,17 @@ model:
     monte_carlo_samples: 100
     dropout_rate: 0.5
     confidence_level: 0.95
+  tuning:
+    dropout:
+      - 0.2
+      - 0.3
+      - 0.5
+    num_heads:
+      - 4
+      - 8
+    sequence_length:
+      - 60
+      - 90
 
 # Data Split
 data_split:

@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Iterable, List, Sequence
+from typing import List, Sequence
+import json
 
 import pandas as pd
 from alpaca.data.enums import DataFeed
@@ -46,6 +47,8 @@ class CollectorConfig:
     storage_format: str = "parquet"
     feed: DataFeed = DataFeed.IEX
     raw_data_path: Path = field(default_factory=lambda: get_settings().data_raw_dir)
+    manifest_path: Path | None = None
+    max_symbols_per_run: int | None = None
 
     @classmethod
     def from_dict(cls, data: dict) -> "CollectorConfig":
@@ -57,6 +60,8 @@ class CollectorConfig:
             lookback_days=int(collection.get("lookback_days", 7)),
             storage_format=collection.get("storage", {}).get("format", "parquet"),
             raw_data_path=Path(collection.get("storage", {}).get("raw_data_path", "./data/raw")),
+            manifest_path=Path(collection.get("manifest_path", "./data/raw/manifest.json")),
+            max_symbols_per_run=collection.get("max_symbols_per_run"),
         )
 
 
@@ -72,7 +77,10 @@ class IntradayCollector:
     def collect_all(self) -> List[Path]:
         """Collect data for every configured symbol."""
         stored_files: List[Path] = []
-        for symbol in self.config.symbols:
+        symbols = list(self.config.symbols)
+        if self.config.max_symbols_per_run:
+            symbols = symbols[: self.config.max_symbols_per_run]
+        for symbol in symbols:
             try:
                 stored_files.extend(self.collect_symbol(symbol))
             except Exception as exc:  # pragma: no cover - defensive logging
@@ -113,6 +121,7 @@ class IntradayCollector:
             df.to_parquet(file_path)
 
         logger.info("Stored intraday data", extra={"file": str(file_path), "rows": len(df)})
+        self._log_manifest(symbol, start, end, file_path, len(df))
         return [file_path]
 
     def _fetch_dataframe(self, symbol: str, start: datetime, end: datetime) -> pd.DataFrame:
@@ -151,4 +160,35 @@ class IntradayCollector:
         if self.config.storage_format.lower() == "csv":
             return "csv"
         return "parquet"
+
+    def _log_manifest(
+        self,
+        symbol: str,
+        start: datetime,
+        end: datetime,
+        file_path: Path,
+        row_count: int,
+    ) -> None:
+        if not self.config.manifest_path:
+            return
+        manifest_path = self.config.manifest_path
+        manifest_path.parent.mkdir(parents=True, exist_ok=True)
+        record = {
+            "symbol": symbol,
+            "start": start.isoformat(),
+            "end": end.isoformat(),
+            "file": str(file_path),
+            "rows": row_count,
+            "timeframe": self.config.timeframe.value,
+            "collected_at": datetime.utcnow().isoformat(),
+        }
+        try:
+            if manifest_path.exists():
+                data = json.loads(manifest_path.read_text(encoding="utf-8"))
+            else:
+                data = []
+        except json.JSONDecodeError:
+            data = []
+        data.append(record)
+        manifest_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
