@@ -32,7 +32,7 @@ def generate_sequences(
     feature_columns: Sequence[str],
     target_column: str,
     sequence_length: int = 60,
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> Tuple[np.ndarray, np.ndarray, Sequence[str]]:
     """Transform a dataframe into rolling window sequences."""
     feature_matrix = df[feature_columns].values
     target_vector = df[target_column].values
@@ -49,7 +49,7 @@ def generate_sequences(
         "Generated supervised sequences",
         extra={"sequence_length": sequence_length, "samples": len(X)},
     )
-    return X, y
+    return X, y, list(feature_columns)
 
 
 def split_sequences(
@@ -69,21 +69,27 @@ def split_sequences(
     return datasets
 
 
-def save_sequence_pack(datasets: Dict[str, Tuple[np.ndarray, np.ndarray]], basename: str) -> Path:
+def save_sequence_pack(
+    datasets: Dict[str, Tuple[np.ndarray, np.ndarray]],
+    basename: str,
+    feature_names: Sequence[str] | None = None,
+) -> Path:
     """Persist train/val/test splits as compressed numpy archives."""
     settings = get_settings()
     out_dir = settings.data_processed_dir / "sequences"
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / f"{basename}.npz"
-    np.savez_compressed(
-        path,
-        train_X=datasets["train"][0],
-        train_y=datasets["train"][1],
-        val_X=datasets["validation"][0],
-        val_y=datasets["validation"][1],
-        test_X=datasets["test"][0],
-        test_y=datasets["test"][1],
-    )
+    save_kwargs = {
+        "train_X": datasets["train"][0],
+        "train_y": datasets["train"][1],
+        "val_X": datasets["validation"][0],
+        "val_y": datasets["validation"][1],
+        "test_X": datasets["test"][0],
+        "test_y": datasets["test"][1],
+    }
+    if feature_names is not None:
+        save_kwargs["feature_names"] = np.array(feature_names)
+    np.savez_compressed(path, **save_kwargs)
     logger.info("Saved sequence pack", extra={"path": str(path)})
     return path
 

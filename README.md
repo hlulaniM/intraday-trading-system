@@ -125,17 +125,50 @@ from pathlib import Path
 import pandas as pd
 
 from data.preprocess import clean_price_frame, save_processed_frame
-from features.technical import add_indicators
-from features.dataset_builder import generate_sequences, split_sequences, save_sequence_pack, SplitConfig
+from features import (
+    add_indicators,
+    SplitConfig,
+    generate_sequences,
+    split_sequences,
+    save_sequence_pack,
+)
 
 df = pd.read_parquet("data/raw/AAPL/...")
 clean_df = clean_price_frame(df)
 save_processed_frame(clean_df, "AAPL")
 
 feature_df = add_indicators(clean_df, config={"features": {"technical_indicators": {}}})
-X, y = generate_sequences(feature_df, feature_columns=feature_df.columns.drop("close"), target_column="close")
+feature_df = feature_df.dropna()
+feature_columns = feature_df.columns.drop(["symbol"])
+X, y, feature_names = generate_sequences(
+    feature_df,
+    feature_columns=feature_columns,
+    target_column="close",
+    sequence_length=60,
+)
 splits = split_sequences(X, y, SplitConfig())
-save_sequence_pack(splits, basename="aapl_sequences")
+save_sequence_pack(splits, basename="aapl_sequences", feature_names=feature_names)
+```
+
+### Training Baseline Models
+
+```bash
+PYTHONPATH=src python scripts/train_baselines.py \
+  data/processed/sequences/aapl_sequences.npz \
+  --close-index -1 \
+  --output data/processed/sequences/aapl_baselines.json
+```
+
+### Training the Hybrid Model
+
+```bash
+PYTHONPATH=src python scripts/train_hybrid.py \
+  data/processed/sequences/aapl_sequences.npz \
+  --config config/config.yaml \
+  --close-index -1 \
+  --epochs 50 \
+  --batch-size 32 \
+  --output data/processed/sequences/aapl_hybrid_metrics.json
 ```
 
 ### Training the Model

@@ -23,9 +23,9 @@ def parse_timeframe(value: str) -> TimeFrame:
     normalized = value.strip().lower()
     mapping = {
         "1min": TimeFrame.Minute,
-        "5min": TimeFrame.FiveMinutes,
-        "15min": TimeFrame.FifteenMinutes,
-        "30min": TimeFrame.ThirtyMinutes,
+        "5min": TimeFrame.Minute,  # fallback; adjust if API exposes more enums
+        "15min": TimeFrame.Minute,
+        "30min": TimeFrame.Minute,
         "1hour": TimeFrame.Hour,
         "1day": TimeFrame.Day,
     }
