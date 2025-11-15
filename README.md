@@ -190,6 +190,16 @@ PYTHONPATH=src python scripts/tune_hybrid.py \
   --output data/processed/sequences/aapl_hybrid_tuning.json
 ```
 
+### Backtesting
+
+```bash
+PYTHONPATH=src python scripts/backtest_hybrid.py \
+  data/processed/sequences/aapl_sequences.npz \
+  --close-index -1 \
+  --epochs 15 \
+  --output docs/backtests/aapl_backtest.json
+```
+
 ### Training the Model
 
 ```bash

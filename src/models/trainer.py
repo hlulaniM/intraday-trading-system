@@ -59,6 +59,10 @@ class SequenceDataset:
             "test": self._direction_labels("test"),
         }
 
+    def last_closes(self, split: str) -> np.ndarray:
+        X = getattr(self, f"{split}_X")
+        return X[:, -1, self.close_index]
+
 
 def load_config_section(path: str, section: str) -> dict:
     config_path = Path(path)
