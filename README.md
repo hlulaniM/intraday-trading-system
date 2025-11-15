@@ -78,8 +78,9 @@ project/
 
 4. **Set up environment variables:**
    ```bash
-   cp .env.example .env
-   # Edit .env with your API keys
+   export ALPACA_API_KEY="your_key"
+   export ALPACA_SECRET_KEY="your_secret"
+   export ALPACA_BASE_URL="https://paper-api.alpaca.markets/v2"
    ```
 
 5. **Run tests:**
@@ -103,6 +104,39 @@ pip install -r requirements-dev.txt
 - **Run tests:** `pytest tests/ --cov=src`
 
 ## Usage
+
+### Collecting Intraday Data
+
+Use the Phase 2 collection script to download and store raw Alpaca minute bars (defaults are read from `config/config.yaml`):
+
+```bash
+source .venv/bin/activate
+python scripts/collect_intraday_data.py \
+  --symbols AAPL TSLA \
+  --lookback-days 5 \
+  --timeframe 1Min \
+  --format parquet
+```
+
+Clean data and build feature sets by importing the new utilities:
+
+```python
+from pathlib import Path
+import pandas as pd
+
+from data.preprocess import clean_price_frame, save_processed_frame
+from features.technical import add_indicators
+from features.dataset_builder import generate_sequences, split_sequences, save_sequence_pack, SplitConfig
+
+df = pd.read_parquet("data/raw/AAPL/...")
+clean_df = clean_price_frame(df)
+save_processed_frame(clean_df, "AAPL")
+
+feature_df = add_indicators(clean_df, config={"features": {"technical_indicators": {}}})
+X, y = generate_sequences(feature_df, feature_columns=feature_df.columns.drop("close"), target_column="close")
+splits = split_sequences(X, y, SplitConfig())
+save_sequence_pack(splits, basename="aapl_sequences")
+```
 
 ### Training the Model
 
