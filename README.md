@@ -198,6 +198,8 @@ PYTHONPATH=src python scripts/backtest_hybrid.py \
   data/processed/sequences/tsla_sequences.npz \
   --close-index -1 \
   --epochs 20 \
+  --stop-loss 0.005 \
+  --take-profit 0.01 \
   --output-dir docs/backtests \
   --summary docs/backtests/summary.json
 ```

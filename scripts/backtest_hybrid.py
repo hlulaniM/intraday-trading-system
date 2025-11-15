@@ -27,11 +27,46 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--output-dir", default="docs/backtests/")
     parser.add_argument("--summary", default="docs/backtests/summary.json")
+    parser.add_argument(
+        "--stop-loss",
+        type=float,
+        default=None,
+        help="Stop-loss as fractional move of entry price (e.g., 0.005 = 0.5%%).",
+    )
+    parser.add_argument(
+        "--take-profit",
+        type=float,
+        default=None,
+        help="Take-profit as fractional move of entry price.",
+    )
     return parser.parse_args()
 
 
-def simulate_trades(entry: np.ndarray, exit_: np.ndarray, signal: np.ndarray) -> dict:
+def _apply_risk_overlays(
+    pnl: np.ndarray,
+    entry: np.ndarray,
+    stop_loss: float | None,
+    take_profit: float | None,
+) -> np.ndarray:
+    adjusted = pnl.copy()
+    if stop_loss is not None:
+        max_loss = stop_loss * entry
+        adjusted = np.maximum(adjusted, -max_loss)
+    if take_profit is not None:
+        max_gain = take_profit * entry
+        adjusted = np.minimum(adjusted, max_gain)
+    return adjusted
+
+
+def simulate_trades(
+    entry: np.ndarray,
+    exit_: np.ndarray,
+    signal: np.ndarray,
+    stop_loss: float | None = None,
+    take_profit: float | None = None,
+) -> dict:
     pnl = signal * (exit_ - entry)
+    pnl = _apply_risk_overlays(pnl, entry, stop_loss, take_profit)
     cumulative = pnl.cumsum()
     wins = pnl[pnl > 0].sum()
     losses = -pnl[pnl < 0].sum()
@@ -57,12 +92,25 @@ def simulate_trades(entry: np.ndarray, exit_: np.ndarray, signal: np.ndarray) ->
     }
 
 
-def backtest_model(entry: np.ndarray, exit_: np.ndarray, direction_signal: np.ndarray) -> dict:
+def backtest_model(
+    entry: np.ndarray,
+    exit_: np.ndarray,
+    direction_signal: np.ndarray,
+    stop_loss: float | None,
+    take_profit: float | None,
+) -> dict:
     signal = np.where(direction_signal > 0, 1, -1)
-    return simulate_trades(entry, exit_, signal)
+    return simulate_trades(entry, exit_, signal, stop_loss=stop_loss, take_profit=take_profit)
 
 
-def run_backtest(dataset_path: Path, close_index: int, epochs: int, batch_size: int) -> dict:
+def run_backtest(
+    dataset_path: Path,
+    close_index: int,
+    epochs: int,
+    batch_size: int,
+    stop_loss: float | None,
+    take_profit: float | None,
+) -> dict:
     dataset = SequenceDataset.from_npz(dataset_path, close_index=close_index)
     entry_prices = dataset.last_closes("test")
     true_prices = dataset.test_y
@@ -74,13 +122,13 @@ def run_backtest(dataset_path: Path, close_index: int, epochs: int, batch_size: 
         dataset.test_y,
     )
     rf_signal = np.sign(rf_result.predictions - entry_prices)
-    rf_metrics = backtest_model(entry_prices, true_prices, rf_signal)
+    rf_metrics = backtest_model(entry_prices, true_prices, rf_signal, stop_loss, take_profit)
 
     trainer = HybridTrainer(dataset, config=HybridConfig())
     trainer.train(epochs=epochs, batch_size=batch_size)
     _, level_pred = trainer.model.model.predict(dataset.test_X, verbose=0)
     hybrid_signal = np.sign(level_pred.flatten() - entry_prices)
-    hybrid_metrics = backtest_model(entry_prices, true_prices, hybrid_signal)
+    hybrid_metrics = backtest_model(entry_prices, true_prices, hybrid_signal, stop_loss, take_profit)
 
     return {
         "baseline_random_forest": rf_metrics,
@@ -101,7 +149,14 @@ def main() -> None:
             continue
         symbol = path.stem.split("_")[0].upper()
         print(f"Backtesting {symbol} ...")
-        results = run_backtest(path, args.close_index, args.epochs, args.batch_size)
+        results = run_backtest(
+            path,
+            args.close_index,
+            args.epochs,
+            args.batch_size,
+            args.stop_loss,
+            args.take_profit,
+        )
         summary[symbol] = results
         output_path = output_dir / f"{symbol.lower()}_backtest.json"
         output_path.write_text(json.dumps(results, indent=2), encoding="utf-8")

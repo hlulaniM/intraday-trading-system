@@ -1,10 +1,12 @@
 # Extended Backtests (AAPL & TSLA)
 
+Parameters: stop-loss 0.5%, take-profit 1.0% per trade.
+
 | Symbol | Model | Trades | Total PnL | Avg PnL | Win Rate | Sharpe |
 |--------|-------|--------|-----------|---------|----------|--------|
-| AAPL   | RandomForest | 167 | 45631.05 | 273.24 | 1.00 | 3596.69 |
-| AAPL   | Hybrid        | 167 | 45631.05 | 273.24 | 1.00 | 3596.69 |
-| TSLA   | RandomForest | 14  | 5648.54  | 403.47 | 1.00 | 4184.66 |
-| TSLA   | Hybrid        | 14  | 5648.54  | 403.47 | 1.00 | 4184.66 |
+| AAPL   | RandomForest | 167 | 0.99 | 0.0059 | 0.51 | 11.94 |
+| AAPL   | Hybrid        | 167 | 0.99 | 0.0059 | 0.51 | 11.94 |
+| TSLA   | RandomForest | 14  | 0.12 | 0.0086 | 0.86 | 8.83 |
+| TSLA   | Hybrid        | 14  | 0.12 | 0.0086 | 0.86 | 8.83 |
 
-> The current trade logic (sign of predicted move) produces identical signals for baseline and hybrid models in this small sample; future iterations should incorporate execution rules (stop-loss, trailing exits) to differentiate strategies.
+> Identical stats indicate the current signal generation (sign of predicted move) remains symmetrical between baseline and hybrid models. Future iterations should incorporate predictive uncertainty, stop-loss triggers based on high/low data, or different holding periods to differentiate the strategies.
