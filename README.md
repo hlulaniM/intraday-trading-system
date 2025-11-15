@@ -118,6 +118,14 @@ python scripts/collect_intraday_data.py \
   --format parquet
 ```
 
+For daily automation, edit `scripts/run_daily_ingestion.sh` with your API keys (or export them in cron) and schedule it:
+
+```bash
+0 6 * * 1-5 /Users/hlulaninobela/intraday-trading-system-1/scripts/run_daily_ingestion.sh >> /tmp/ingestion.log 2>&1
+```
+
+Each run appends an entry to `data/raw/manifest.json` so you can see which file covers which dates.
+
 Clean data and build feature sets by importing the new utilities:
 
 ```python
@@ -193,6 +201,8 @@ python -m src.models.train
 ```bash
 uvicorn src.api.server:app --reload
 ```
+
+The `/predict` endpoint expects a single sequence (list of `[timesteps, features]`) and returns both direction probability (with Monte Carlo variance) and level forecast statistics. Wire this endpoint to TradingView webhooks or any realtime consumer that can package the latest engineered sequence.
 
 ### Running the Dashboard
 

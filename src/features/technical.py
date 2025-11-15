@@ -120,6 +120,13 @@ def _add_volatility_buckets(df: pd.DataFrame, window: int = 30) -> pd.DataFrame:
         bins=[-float("inf"), quantiles[0], quantiles[1], float("inf")],
         labels=["low_vol", "medium_vol", "high_vol"],
     )
-    df["volatility_bucket"] = buckets.astype(str).fillna("unknown_vol")
+    bucket_series = buckets.astype(str).fillna("unknown_vol")
+    mapping = {
+        "low_vol": 0,
+        "medium_vol": 1,
+        "high_vol": 2,
+        "unknown_vol": -1,
+    }
+    df["volatility_bucket"] = bucket_series.map(mapping).astype(float)
     return df
 
