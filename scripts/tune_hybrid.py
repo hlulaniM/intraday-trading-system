@@ -42,18 +42,20 @@ def load_tuning_grid(path: str) -> Dict[str, List]:
 
 def main() -> None:
     args = parse_args()
-    dataset = SequenceDataset.from_npz(args.dataset, close_index=args.close_index)
+    base_dataset = SequenceDataset.from_npz(args.dataset, close_index=args.close_index)
     grid = load_tuning_grid(args.config)
     dropout_values = grid.get("dropout", [0.3])
     head_values = grid.get("num_heads", [4])
-    seq_lengths = grid.get("sequence_length", [dataset.train_X.shape[1]])
+    seq_lengths = grid.get("sequence_length", [base_dataset.train_X.shape[1]])
 
     results = []
     for dropout, heads, seq_len in product(dropout_values, head_values, seq_lengths):
         print(f"Running trial dropout={dropout}, heads={heads}, seq_len={seq_len}")
-        if seq_len != dataset.train_X.shape[1]:
-            # truncate or pad sequences as a quick adjustment
-            dataset = _adjust_sequence_length(dataset, seq_len)
+        dataset = (
+            _clone_dataset(base_dataset)
+            if seq_len == base_dataset.train_X.shape[1]
+            else _adjust_sequence_length(base_dataset, seq_len)
+        )
         config = HybridConfig(
             dropout=dropout,
             num_heads=heads,
@@ -76,20 +78,35 @@ def main() -> None:
     print(f"Tuning results saved to {args.output}")
 
 
-def _adjust_sequence_length(dataset: SequenceDataset, seq_len: int) -> SequenceDataset:
-    def resize(X: np.ndarray) -> np.ndarray:
-        if X.shape[1] == seq_len:
-            return X
-        if X.shape[1] > seq_len:
-            return X[:, -seq_len:, :]
-        pad_width = seq_len - X.shape[1]
-        pad = np.repeat(X[:, :1, :], pad_width, axis=1)
-        return np.concatenate([pad, X], axis=1)
+def _resize_sequences(X: np.ndarray, seq_len: int) -> np.ndarray:
+    if X.shape[1] == seq_len:
+        return X.copy()
+    if X.shape[1] > seq_len:
+        return X[:, -seq_len:, :]
+    pad_width = seq_len - X.shape[1]
+    pad = np.repeat(X[:, :1, :], pad_width, axis=1)
+    return np.concatenate([pad, X], axis=1)
 
-    dataset.train_X = resize(dataset.train_X)
-    dataset.val_X = resize(dataset.val_X)
-    dataset.test_X = resize(dataset.test_X)
-    return dataset
+
+def _clone_dataset(dataset: SequenceDataset) -> SequenceDataset:
+    return SequenceDataset(
+        train_X=dataset.train_X.copy(),
+        train_y=dataset.train_y.copy(),
+        val_X=dataset.val_X.copy(),
+        val_y=dataset.val_y.copy(),
+        test_X=dataset.test_X.copy(),
+        test_y=dataset.test_y.copy(),
+        feature_names=dataset.feature_names,
+        close_index=dataset.close_index,
+    )
+
+
+def _adjust_sequence_length(base_dataset: SequenceDataset, seq_len: int) -> SequenceDataset:
+    cloned = _clone_dataset(base_dataset)
+    cloned.train_X = _resize_sequences(cloned.train_X, seq_len)
+    cloned.val_X = _resize_sequences(cloned.val_X, seq_len)
+    cloned.test_X = _resize_sequences(cloned.test_X, seq_len)
+    return cloned
 
 
 if __name__ == "__main__":
