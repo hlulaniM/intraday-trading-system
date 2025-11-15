@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict, Tuple, List
 
 import numpy as np
 import tensorflow as tf
@@ -112,9 +112,17 @@ class HybridTrainer:
             config=self.config,
         )
 
-    def train(self, epochs: int = 50, batch_size: int = 32) -> tf.keras.callbacks.History:
+    def train(
+        self,
+        epochs: int = 50,
+        batch_size: int = 32,
+        callbacks: List[tf.keras.callbacks.Callback] | None = None,
+    ) -> tf.keras.callbacks.History:
         y_dir = self.dataset._direction_labels("train")
         y_dir_val = self.dataset._direction_labels("val")
+        training_callbacks = callbacks or [
+            tf.keras.callbacks.EarlyStopping(patience=10, restore_best_weights=True)
+        ]
         history = self.model.model.fit(
             self.dataset.train_X,
             {"direction": y_dir, "level": self.dataset.train_y},
@@ -125,7 +133,7 @@ class HybridTrainer:
             epochs=epochs,
             batch_size=batch_size,
             verbose=0,
-            callbacks=[tf.keras.callbacks.EarlyStopping(patience=10, restore_best_weights=True)],
+            callbacks=training_callbacks,
         )
         return history
 
