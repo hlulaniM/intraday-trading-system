@@ -215,6 +215,7 @@ python -m src.dashboard.app
 - [System Architecture](SYSTEM_ARCHITECTURE.md) - Detailed architecture diagrams
 - [API Documentation](docs/api.md) - API endpoint documentation
 - [User Guide](docs/user_guide.md) - Usage instructions
+- [Model Results](docs/model_results.md) - Baseline and hybrid metrics
 
 ## Contributing
 
