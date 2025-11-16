@@ -78,7 +78,8 @@ def save_sequence_pack(
     settings = get_settings()
     out_dir = settings.data_processed_dir / "sequences"
     out_dir.mkdir(parents=True, exist_ok=True)
-    path = out_dir / f"{basename}.npz"
+    safe_basename = basename.replace("/", "_").replace(" ", "_")
+    path = out_dir / f"{safe_basename}.npz"
     save_kwargs = {
         "train_X": datasets["train"][0],
         "train_y": datasets["train"][1],

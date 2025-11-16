@@ -220,28 +220,74 @@ uvicorn src.api.server:app --reload
 
 The `/predict` endpoint expects a single sequence (list of `[timesteps, features]`) and returns both direction probability (with Monte Carlo variance) and level forecast statistics. Wire this endpoint to TradingView webhooks or any realtime consumer that can package the latest engineered sequence.
 
-### TradingView Webhook
+### TradingView Integration with Engulfing Confirmation
 
-`POST /webhook` accepts either a `sequence` field or a `symbol`, plus an optional `threshold`. Example payload for alerts:
+The system now supports **intelligent signal confirmation** using engulfing candle patterns. Trades are only executed when:
+- **Bullish Signal**: Model predicts UP + Bullish Engulfing Candle
+- **Bearish Signal**: Model predicts DOWN + Bearish Engulfing Candle
 
+#### API Endpoints
+
+**POST /signal** - Get trading signal with engulfing confirmation:
+```bash
+curl -X POST http://localhost:8000/signal \
+  -H "Content-Type: application/json" \
+  -d '{
+    "symbol": "AAPL",
+    "threshold": 0.6,
+    "require_engulfing": true,
+    "min_body_ratio": 1.5
+  }'
+```
+
+**POST /webhook** - TradingView webhook (enhanced with engulfing confirmation):
 ```json
 {
   "symbol": "AAPL",
-  "alert_name": "AAPL breakout",
-  "threshold": 0.6
+  "alert_name": "AAPL Bullish Signal",
+  "threshold": 0.6,
+  "require_engulfing": true,
+  "min_body_ratio": 1.5,
+  "auto_trade": true
 }
 ```
 
-Sample Pine Script alert message:
+#### Pine Script Setup
 
-```pine
+1. Copy `tradingview/hybrid_forecast_strategy.pine` into TradingView Pine Editor
+2. Add to chart and configure alert with webhook URL: `http://your-server:8000/webhook`
+3. Alert message format (JSON):
+```json
 {
   "symbol": "{{ticker}}",
   "alert_name": "{{strategy.order.comment}}",
   "threshold": 0.6,
+  "require_engulfing": true,
   "auto_trade": true
 }
 ```
+
+See [TradingView Integration Guide](docs/tradingview_integration.md) for detailed setup instructions.
+
+#### 30-Day Live Trading
+
+Run automated 30-day live trading with signal confirmation:
+
+```bash
+export API_BASE_URL=http://127.0.0.1:8000
+export LIVE_TRADING_SYMBOLS=AAPL,TSLA
+export LIVE_TRADING_THRESHOLD=0.6
+export REQUIRE_ENGULFING=true
+export AUTO_TRADE_ENABLED=true
+export LIVE_TRADE_QTY=1
+export TRADING_DAYS=30
+
+python scripts/live_trading_30days.py
+```
+
+The script monitors symbols, checks for confirmed signals (prediction + engulfing pattern), and executes trades automatically. All activity is logged to `logs/live_trading_*.jsonl` with a performance report at the end.
+
+#### Auto-Trading Configuration
 
 To enable Alpaca auto-trading, export the following:
 
@@ -250,9 +296,15 @@ export ALPACA_API_KEY="your_key"
 export ALPACA_SECRET_KEY="your_secret"
 export AUTO_TRADE_ENABLED=true
 export AUTO_TRADE_QTY=1
+
+# Risk management
+export MAX_DAILY_LOSS_USD=500
+export MAX_POSITIONS_PER_SYMBOL=5
+export TRADE_COOLDOWN_SECONDS=300
+export SYMBOL_ALLOWLIST=AAPL,TSLA,BTC/USD,ETH/USD
 ```
 
-When enabled, `/webhook` will submit market orders via Alpaca’s paper trading API whenever the confidence exceeds the threshold and log them to `logs/trades.jsonl`.
+When enabled, `/webhook` and `/signal` will submit market orders via Alpaca's paper trading API when signals are confirmed and log them to `logs/trades.jsonl`.
 
 ### Running the Dashboard
 
@@ -276,6 +328,7 @@ Expose API on `localhost:8000` and dashboard on `localhost:8050`. Set `ALPACA_AP
 ## Documentation
 
 - [System Architecture](SYSTEM_ARCHITECTURE.md) - Detailed architecture diagrams
+- [TradingView Integration](docs/tradingview_integration.md) - Complete guide for TradingView setup with engulfing confirmation
 - [API Documentation](docs/api.md) - API endpoint documentation
 - [User Guide](docs/user_guide.md) - Usage instructions
 - [Model Results](docs/model_results.md) - Baseline and hybrid metrics

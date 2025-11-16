@@ -9,6 +9,7 @@ import pandas as pd
 
 from config import get_settings
 from utils.logger import setup_logger
+from utils.symbols import sanitize_symbol
 
 logger = setup_logger("data_preprocess")
 
@@ -63,10 +64,11 @@ def synchronize_frames(frames: Dict[str, pd.DataFrame], freq: str = "1min") -> D
 def save_processed_frame(df: pd.DataFrame, symbol: str, suffix: str = "cleaned") -> Path:
     """Persist cleaned data into the processed directory."""
     settings = get_settings()
-    processed_dir = settings.data_processed_dir / symbol.upper()
+    safe_symbol = sanitize_symbol(symbol)
+    processed_dir = settings.data_processed_dir / safe_symbol
     processed_dir.mkdir(parents=True, exist_ok=True)
     timestamp_label = df.index.min().strftime("%Y%m%d") if not df.empty else "empty"
-    path = processed_dir / f"{symbol.upper()}_{suffix}_{timestamp_label}.parquet"
+    path = processed_dir / f"{safe_symbol}_{suffix}_{timestamp_label}.parquet"
     df.to_parquet(path)
     logger.info("Saved processed dataframe", extra={"symbol": symbol, "path": str(path)})
     return path

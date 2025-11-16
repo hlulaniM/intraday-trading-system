@@ -1,0 +1,96 @@
+//@version=5
+strategy("Hybrid Forecast with Engulfing Confirmation", overlay=true, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// ============================================================================
+// Configuration
+// ============================================================================
+API_URL = input.string("http://127.0.0.1:8000", "API Base URL", group="API Settings")
+THRESHOLD = input.float(0.6, "Direction Confidence Threshold", minval=0.0, maxval=1.0, step=0.05, group="Strategy")
+REQUIRE_ENGULFING = input.bool(true, "Require Engulfing Candle Confirmation", group="Strategy")
+MIN_ENGULFING_SIZE = input.float(0.5, "Min Engulfing Body Size (%)", minval=0.1, maxval=5.0, step=0.1, group="Strategy")
+
+// ============================================================================
+// Engulfing Pattern Detection
+// ============================================================================
+is_bullish_engulfing() =>
+    prev_bearish = close[1] < open[1]
+    curr_bullish = close > open
+    prev_body = math.abs(close[1] - open[1])
+    curr_body = math.abs(close - open)
+    engulfs = open < close[1] and close > open[1]
+    size_ok = curr_body >= prev_body * (1 + MIN_ENGULFING_SIZE / 100)
+    prev_bearish and curr_bullish and engulfs and size_ok
+
+is_bearish_engulfing() =>
+    prev_bullish = close[1] > open[1]
+    curr_bearish = close < open
+    prev_body = math.abs(close[1] - open[1])
+    curr_body = math.abs(open - close)
+    engulfs = open > close[1] and close < open[1]
+    size_ok = curr_body >= prev_body * (1 + MIN_ENGULFING_SIZE / 100)
+    prev_bullish and curr_bearish and engulfs and size_ok
+
+bullish_engulf = is_bullish_engulfing()
+bearish_engulf = is_bearish_engulfing()
+
+// Visual indicators
+plotshape(bullish_engulf, style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small, title="Bullish Engulfing")
+plotshape(bearish_engulf, style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small, title="Bearish Engulfing")
+
+// ============================================================================
+// API Integration (Simulated - TradingView doesn't support HTTP in Pine)
+// ============================================================================
+// NOTE: TradingView Pine Script cannot make HTTP requests directly.
+// You must use TradingView Alerts to send webhooks to your API.
+// This script detects patterns and generates alerts that your webhook handler will process.
+
+// Simulated prediction state (in real usage, this comes from your API via webhook)
+var float last_direction_prob = 0.5
+var float last_level_mean = close
+var string last_signal = "NEUTRAL"
+
+// ============================================================================
+// Signal Generation Logic
+// ============================================================================
+// In production, the API will be called via webhook from TradingView Alerts
+// This section shows the logic that should run on your server
+
+// Bullish signal: prediction says UP + bullish engulfing candle
+bullish_signal = (last_direction_prob >= THRESHOLD) and (not REQUIRE_ENGULFING or bullish_engulf)
+
+// Bearish signal: prediction says DOWN + bearish engulfing candle  
+bearish_signal = (last_direction_prob < (1 - THRESHOLD)) and (not REQUIRE_ENGULFING or bearish_engulf)
+
+// ============================================================================
+// Strategy Execution
+// ============================================================================
+if bullish_signal and strategy.position_size == 0
+    strategy.entry("Long", strategy.long, comment="Bullish Forecast + Engulfing")
+    alert("BULLISH: " + syminfo.ticker + " | Prob: " + str.tostring(last_direction_prob, "#.##") + " | Level: " + str.tostring(last_level_mean, "#.##"), alert.freq_once_per_bar)
+
+if bearish_signal and strategy.position_size == 0
+    strategy.entry("Short", strategy.short, comment="Bearish Forecast + Engulfing")
+    alert("BEARISH: " + syminfo.ticker + " | Prob: " + str.tostring(last_direction_prob, "#.##") + " | Level: " + str.tostring(last_level_mean, "#.##"), alert.freq_once_per_bar)
+
+// Exit on opposite signal
+if strategy.position_size > 0 and bearish_signal
+    strategy.close("Long", comment="Reverse to Bearish")
+    
+if strategy.position_size < 0 and bullish_signal
+    strategy.close("Short", comment="Reverse to Bullish")
+
+// ============================================================================
+// Display
+// ============================================================================
+var table info_table = table.new(position.top_right, 2, 4, bgcolor=color.new(color.black, 80), border_width=1)
+if barstate.islast
+    table.cell(info_table, 0, 0, "Signal", text_color=color.white, bgcolor=color.new(color.gray, 50))
+    table.cell(info_table, 1, 0, last_signal, text_color=color.white)
+    table.cell(info_table, 0, 1, "Direction Prob", text_color=color.white, bgcolor=color.new(color.gray, 50))
+    table.cell(info_table, 1, 1, str.tostring(last_direction_prob, "#.##"), text_color=color.white)
+    table.cell(info_table, 0, 2, "Target Level", text_color=color.white, bgcolor=color.new(color.gray, 50))
+    table.cell(info_table, 1, 2, str.tostring(last_level_mean, "#.##"), text_color=color.white)
+    table.cell(info_table, 0, 3, "Engulfing", text_color=color.white, bgcolor=color.new(color.gray, 50))
+    engulf_status = bullish_engulf ? "BULL" : bearish_engulf ? "BEAR" : "NONE"
+    table.cell(info_table, 1, 3, engulf_status, text_color=color.white)
+

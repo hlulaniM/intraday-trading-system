@@ -15,6 +15,7 @@ from alpaca.data.timeframe import TimeFrame
 from config import get_settings
 from data.alpaca_client import AlpacaService
 from utils.logger import setup_logger
+from utils.symbols import sanitize_symbol
 
 logger = setup_logger("data_collector")
 
@@ -108,11 +109,12 @@ class IntradayCollector:
             logger.warning("No data returned for symbol", extra={"symbol": symbol})
             return []
 
-        symbol_dir = (self.raw_path / symbol.upper()).resolve()
+        safe_symbol = sanitize_symbol(symbol)
+        symbol_dir = (self.raw_path / safe_symbol).resolve()
         symbol_dir.mkdir(parents=True, exist_ok=True)
         start_tag = start.strftime("%Y%m%d")
         end_tag = end.strftime("%Y%m%d")
-        file_name = f"{symbol.upper()}_{start_tag}_{end_tag}.{self._extension}"
+        file_name = f"{safe_symbol}_{start_tag}_{end_tag}.{self._extension}"
         file_path = symbol_dir / file_name
 
         if self.config.storage_format.lower() == "csv":

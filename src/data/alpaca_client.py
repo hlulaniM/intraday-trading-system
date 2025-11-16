@@ -7,9 +7,9 @@ from typing import List, Sequence, Union
 
 import pandas as pd
 
-from alpaca.data.enums import DataFeed
-from alpaca.data.historical import StockHistoricalDataClient
-from alpaca.data.requests import StockBarsRequest
+from alpaca.data.enums import CryptoFeed, DataFeed
+from alpaca.data.historical import CryptoHistoricalDataClient, StockHistoricalDataClient
+from alpaca.data.requests import CryptoBarsRequest, StockBarsRequest
 from alpaca.data.timeframe import TimeFrame
 from alpaca.trading.client import TradingClient
 from alpaca.trading.requests import GetAssetsRequest
@@ -31,10 +31,18 @@ class AlpacaService:
             secret_key=settings.alpaca_secret_key,
             paper="paper" in settings.alpaca_base_url,
         )
-        self._data_client = StockHistoricalDataClient(
+        self._stock_client = StockHistoricalDataClient(
             api_key=settings.alpaca_api_key,
             secret_key=settings.alpaca_secret_key,
         )
+        self._crypto_client = CryptoHistoricalDataClient(
+            api_key=settings.alpaca_api_key,
+            secret_key=settings.alpaca_secret_key,
+        )
+
+    @staticmethod
+    def _is_crypto(symbol: str) -> bool:
+        return "/" in symbol or symbol.upper().startswith(("BTC", "ETH", "SOL", "ADA"))
 
     def get_account_status(self) -> str:
         """Return current account status string."""
@@ -59,15 +67,25 @@ class AlpacaService:
         """Fetch intraday bars for a symbol."""
         end = datetime.now(timezone.utc)
         start = end - timedelta(minutes=lookback_minutes)
-        request = StockBarsRequest(
-            symbol_or_symbols=symbol,
-            timeframe=timeframe,
-            start=start,
-            end=end,
-            limit=lookback_minutes,
-            feed=DataFeed.IEX,
-        )
-        bars = self._data_client.get_stock_bars(request)
+        if self._is_crypto(symbol):
+            request = CryptoBarsRequest(
+                symbol_or_symbols=symbol,
+                timeframe=timeframe,
+                start=start,
+                end=end,
+                feed=CryptoFeed.US,
+            )
+            bars = self._crypto_client.get_crypto_bars(request)
+        else:
+            request = StockBarsRequest(
+                symbol_or_symbols=symbol,
+                timeframe=timeframe,
+                start=start,
+                end=end,
+                limit=lookback_minutes,
+                feed=DataFeed.IEX,
+            )
+            bars = self._stock_client.get_stock_bars(request)
         logger.info(
             "Fetched Alpaca bars",
             extra={
@@ -95,29 +113,50 @@ class AlpacaService:
         else:
             symbol_list = list(symbols)
 
-        request = StockBarsRequest(
-            symbol_or_symbols=symbol_list,
-            timeframe=timeframe,
-            start=start,
-            end=end,
-            feed=feed,
-            limit=limit,
-        )
-        response = self._data_client.get_stock_bars(request)
+        stock_symbols = [sym for sym in symbol_list if not self._is_crypto(sym)]
+        crypto_symbols = [sym for sym in symbol_list if self._is_crypto(sym)]
 
-        if hasattr(response, "df") and response.df is not None:
-            df = response.df.copy()
-            if not df.empty:
-                # Ensure timezone aware index for downstream alignment
-                df.index = df.index.set_levels(
-                    [df.index.levels[0], df.index.levels[1].tz_convert("UTC")],
-                    level=[0, 1],
-                )
-            return df
+        frames: List[pd.DataFrame] = []
 
-        logger.warning(
-            "No bar data returned",
-            extra={"symbols": symbol_list, "timeframe": timeframe.value},
-        )
-        return pd.DataFrame()
+        if stock_symbols:
+            stock_request = StockBarsRequest(
+                symbol_or_symbols=stock_symbols,
+                timeframe=timeframe,
+                start=start,
+                end=end,
+                feed=feed,
+                limit=limit,
+            )
+            stock_response = self._stock_client.get_stock_bars(stock_request)
+            if getattr(stock_response, "df", None) is not None:
+                frames.append(stock_response.df.copy())
+
+        if crypto_symbols:
+            crypto_request = CryptoBarsRequest(
+                symbol_or_symbols=crypto_symbols,
+                timeframe=timeframe,
+                start=start,
+                end=end,
+                feed=CryptoFeed.US,
+            )
+            crypto_response = self._crypto_client.get_crypto_bars(crypto_request)
+            if getattr(crypto_response, "df", None) is not None:
+                frames.append(crypto_response.df.copy())
+
+        if not frames:
+            logger.warning(
+                "No bar data returned",
+                extra={"symbols": symbol_list, "timeframe": timeframe.value},
+            )
+            return pd.DataFrame()
+
+        df = pd.concat(frames)
+        if isinstance(df.index, pd.MultiIndex):
+            df.index = df.index.set_levels(
+                [df.index.levels[0], df.index.levels[1].tz_convert("UTC")],
+                level=[0, 1],
+            )
+        else:
+            df.index = df.index.tz_convert("UTC") if df.index.tz else df.index.tz_localize("UTC")
+        return df
 
